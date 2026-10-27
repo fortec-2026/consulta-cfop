@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Consulte o CFOP de entrada e os CFOPs das saídas seguintes para notas de remessa, consignação, industrialização, conserto e compras.">
+<title>Consulta de CFOP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: ferramenta de balcão — campo de consulta no topo, resultado em duas colunas (entrada | saídas), catálogo abaixo */
+:root{
+  --bg:#f3f6f5; --surface:#ffffff; --line:#d5dfdb; --ink:#16211d; --muted:#5a6a64;
+  --in:#1b6b54; --in-soft:#e2f1ec; --out:#2c5d8f; --out-soft:#e4edf7; --warn:#8a5a0b; --warn-soft:#fbf1dc;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1513; --surface:#18201d; --line:#2b3733; --ink:#e4ece9; --muted:#9aaba5;
+  --in:#5fc7a4; --in-soft:#173029; --out:#8ab8ea; --out-soft:#182638; --warn:#e7b65c; --warn-soft:#2e2514; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1513; --surface:#18201d; --line:#2b3733; --ink:#e4ece9; --muted:#9aaba5;
+  --in:#5fc7a4; --in-soft:#173029; --out:#8ab8ea; --out-soft:#182638; --warn:#e7b65c; --warn-soft:#2e2514; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:980px;margin:0 auto;padding-block:32px 56px;display:flex;flex-direction:column;gap:28px}
+h1{font-size:1.9rem;line-height:1.15;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:1.05rem;margin:0}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch;margin-top:8px}
+.code{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;font-weight:600;color:var(--muted)}
+
+.search{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.search label{font-weight:600}
+.field{display:flex;gap:10px;flex-wrap:wrap}
+#q{flex:1 1 260px;min-width:0;font:600 1.35rem var(--mono);padding:12px 14px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+#q:focus{outline:none;border-color:var(--in);box-shadow:0 0 0 3px var(--in-soft)}
+.hint{color:var(--muted);font-size:.88rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 11px;cursor:pointer}
+.chip:hover,.chip:focus-visible{border-color:var(--in);color:var(--in);outline:none}
+.chip .code{font-size:.8rem;margin-right:4px}
+
+#result{display:flex;flex-direction:column;gap:16px}
+.op{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.op-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.op-head h2{font-size:1.2rem}
+.role{color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
+.col{padding:16px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.col+.col{border-left:1px solid var(--line)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;padding:3px 9px;border-radius:4px;align-self:flex-start}
+.tag.in{background:var(--in-soft);color:var(--in)}
+.tag.out{background:var(--out-soft);color:var(--out)}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:baseline}
+.item .code{font-size:1.25rem}
+.in .item .code,.col.in .code{color:var(--in)}
+.col.out .item .code{color:var(--out)}
+.item .when{grid-column:2;color:var(--muted);font-size:.88rem}
+.item .desc{font-weight:500}
+.item .dest{grid-column:2;font-size:.8rem;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:14px}
+.none{color:var(--muted);font-size:.92rem}
+.notes{padding:14px 18px;border-top:1px solid var(--line);background:var(--warn-soft);display:flex;flex-direction:column;gap:6px}
+.notes p{font-size:.9rem}
+.notes .eyebrow{color:var(--warn)}
+.msg{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:16px 18px;color:var(--muted)}
+.msg strong{color:var(--ink)}
+
+.catalog{display:flex;flex-direction:column;gap:14px}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.group h3{margin:0 0 4px;font-size:.95rem}
+.link{all:unset;cursor:pointer;display:grid;grid-template-columns:3.6em minmax(0,1fr);gap:8px;padding:4px 6px;margin:0 -6px;border-radius:5px;font-size:.9rem}
+.link:hover,.link:focus-visible{background:var(--in-soft)}
+.link .code{color:var(--in)}
+.foot{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;max-width:75ch}
+
+@media (max-width:720px){
+  .cols{grid-template-columns:1fr}
+  .col+.col{border-left:0;border-top:1px solid var(--line)}
+  h1{font-size:1.55rem}
+}
+@media (prefers-reduced-motion:no-preference){.op{animation:rise .18s ease-out}@keyframes rise{from{transform:translateY(4px)}to{transform:none}}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Notas de remessa, retorno, consignação e compras</span>
+    <h1>Consulta de CFOP</h1>
+    <p class="lead">Digite o CFOP que está na nota que você recebeu. A consulta mostra o CFOP para dar entrada no seu sistema e quais CFOPs usar nas saídas seguintes (retorno, devolução ou venda).</p>
+  </header>
+
+  <section class="search" aria-label="Consulta">
+    <label for="q">CFOP da nota recebida (ou palavra-chave)</label>
+    <div class="field">
+      <input id="q" type="text" inputmode="search" autocomplete="off" placeholder="ex.: 6.917 ou consignação" value="6.917">
+    </div>
+    <p class="hint">Começa com 5 = fornecedor do mesmo estado. Começa com 6 = fornecedor de outro estado. Também aceita CFOP de entrada (1.xxx / 2.xxx).</p>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section id="result" aria-live="polite"></section>
+
+  <section class="catalog">
+    <h2>Todas as operações</h2>
+    <div class="groups" id="groups"></div>
+  </section>
+
+  <p class="foot">Referência baseada na tabela de CFOP do Convênio s/nº de 1970 (Ajuste SINIEF 07/01) e no Ajuste SINIEF 02/93 para consignação. Alguns estados têm regras próprias para operações como garantia, locação e armazém geral. Em caso de dúvida sobre crédito de ICMS/IPI ou escrituração, confirme com o contador responsável.</p>
+</div>
+
+<script>
+// dest: "origem" = volta para quem emitiu a nota recebida (5 se mesmo estado, 6 se outro)
+//       "cliente" = depende da UF do destinatário; "exterior" = 7
+const OPS = [
+ {g:"Consignação", r:["917"], t:"Remessa em consignação", p:"Você recebeu mercadoria em consignação (é o consignatário).",
+  e:[{c:"917",d:"Entrada de mercadoria recebida em consignação mercantil ou industrial"}],
+  s:[{c:"115",dest:"cliente",d:"Venda de mercadoria recebida anteriormente em consignação mercantil",w:"Quando vender a mercadoria ao seu cliente."},
+     {c:"918",dest:"origem",d:"Devolução de mercadoria recebida em consignação mercantil ou industrial",w:"Para devolver ao fornecedor o que não vendeu ou não usou."},
+     {c:"919",dest:"origem",d:"Devolução simbólica de mercadoria vendida ou utilizada em processo industrial, recebida em consignação",w:"Consignação industrial: quando usar a mercadoria na produção."}],
+  n:["Depois de informada a venda ou o uso, o fornecedor emite a nota de faturamento: 5.113/5.114 (mercantil) ou 5.111/5.112 (industrial). Consulte esses códigos aqui para saber a entrada.","Regras detalhadas no Ajuste SINIEF 02/93 e no regulamento do ICMS do seu estado."]},
+ {g:"Consignação", r:["113","114"], t:"Faturamento de consignação mercantil", p:"Você vendeu a mercadoria consignada e o fornecedor faturou.",
+  e:[{c:"113",d:"Compra para comercialização de mercadoria recebida anteriormente em consignação mercantil"}], s:[],
+  n:["Em regra esta nota vem sem destaque de ICMS/IPI, porque o crédito já foi feito na entrada da remessa (1.917/2.917)."]},
+ {g:"Consignação", r:["111","112"], t:"Faturamento de consignação industrial", p:"Você usou na produção a mercadoria consignada e o fornecedor faturou.",
+  e:[{c:"111",d:"Compra para industrialização de mercadoria recebida anteriormente em consignação industrial"}], s:[],
+  n:["Na consignação industrial esta nota costuma vir com destaque de ICMS/IPI, pois o crédito da remessa foi anulado na devolução simbólica (5.919/6.919)."]},
+ {g:"Consignação", r:["918"], t:"Devolução de consignação", p:"Você enviou em consignação (é o consignante) e o cliente devolveu.",
+  e:[{c:"918",d:"Devolução de mercadoria remetida em consignação mercantil ou industrial"}], s:[]},
+ {g:"Consignação", r:["919"], t:"Devolução simbólica de consignação", p:"Você é o consignante e o cliente usou a mercadoria na produção.",
+  e:[{c:"919",d:"Devolução simbólica de mercadoria vendida ou utilizada em processo industrial, remetida em consignação"}],
+  s:[{c:"111",dest:"origem",d:"Venda de produção do estabelecimento remetida anteriormente em consignação industrial",w:"Faturamento, se a mercadoria é de fabricação própria."},
+     {c:"112",dest:"origem",d:"Venda de mercadoria adquirida de terceiros remetida anteriormente em consignação industrial",w:"Faturamento, se a mercadoria foi comprada para revenda."}]},
+
+ {g:"Industrialização por encomenda", r:["901"], t:"Remessa para industrialização", p:"Você vai industrializar (beneficiar, montar, embalar) para outra empresa.",
+  e:[{c:"901",d:"Entrada para industrialização por encomenda"}],
+  s:[{c:"124",dest:"origem",d:"Industrialização efetuada para outra empresa",w:"Cobrança do serviço e dos materiais próprios que você aplicou."},
+     {c:"902",dest:"origem",d:"Retorno de mercadoria utilizada na industrialização por encomenda",w:"Devolve, no produto pronto, os insumos que recebeu."},
+     {c:"903",dest:"origem",d:"Retorno de mercadoria recebida para industrialização e não aplicada",w:"Devolve o que sobrou sem usar."}],
+  n:["No retorno do produto pronto, normalmente saem juntas a 5.124 (cobrança) e a 5.902 (retorno dos insumos)."]},
+ {g:"Industrialização por encomenda", r:["902"], t:"Retorno da industrialização", p:"Você mandou industrializar e recebeu o produto pronto.",
+  e:[{c:"902",d:"Retorno de mercadoria remetida para industrialização por encomenda"}], s:[], n:["A cobrança do industrializador vem na 5.124/6.124, que entra como 1.124/2.124."]},
+ {g:"Industrialização por encomenda", r:["124"], t:"Cobrança da industrialização", p:"Você mandou industrializar e recebeu a nota de cobrança.",
+  e:[{c:"124",d:"Industrialização efetuada por outra empresa"}], s:[]},
+ {g:"Industrialização por encomenda", r:["903"], t:"Retorno de insumo não aplicado", p:"Você mandou industrializar e recebeu de volta o que não foi usado.",
+  e:[{c:"903",d:"Entrada de mercadoria remetida para industrialização e não aplicada no processo"}], s:[]},
+ {g:"Industrialização por encomenda", r:["924"], t:"Industrialização por conta e ordem", p:"Você vai industrializar e o insumo veio direto do fornecedor do seu cliente.",
+  e:[{c:"924",d:"Entrada para industrialização por conta e ordem do adquirente, sem transitar pelo estabelecimento dele"}],
+  s:[{c:"125",dest:"cliente",lbl:"Conforme a UF do autor da encomenda",d:"Industrialização efetuada para outra empresa quando a mercadoria não transitou pelo estabelecimento adquirente",w:"Cobrança do serviço ao autor da encomenda."},
+     {c:"925",dest:"cliente",lbl:"Conforme a UF do autor da encomenda",d:"Retorno de mercadoria recebida para industrialização por conta e ordem do adquirente",w:"Retorno dos insumos ao autor da encomenda."}]},
+ {g:"Industrialização por encomenda", r:["925"], t:"Retorno de industrialização por conta e ordem", p:"Você é o autor da encomenda e o insumo não passou pela sua empresa.",
+  e:[{c:"925",d:"Retorno de mercadoria remetida para industrialização por conta e ordem do adquirente, sem transitar pelo estabelecimento dele"}], s:[]},
+ {g:"Industrialização por encomenda", r:["125"], t:"Cobrança de industrialização por conta e ordem", p:"Você é o autor da encomenda e recebeu a cobrança.",
+  e:[{c:"125",d:"Industrialização efetuada por outra empresa quando a mercadoria remetida não transitou pelo estabelecimento adquirente"}], s:[]},
+
+ {g:"Conserto, demonstração e comodato", r:["915"], t:"Remessa para conserto", p:"Você recebeu um bem para consertar.",
+  e:[{c:"915",d:"Entrada de mercadoria ou bem recebido para conserto ou reparo"}],
+  s:[{c:"916",dest:"origem",d:"Retorno de mercadoria ou bem recebido para conserto ou reparo",w:"Devolução do bem consertado (ou sem conserto)."}],
+  n:["Peças cobradas saem em nota de venda própria, e o serviço normalmente em NFS-e da prefeitura."]},
+ {g:"Conserto, demonstração e comodato", r:["916"], t:"Retorno de conserto", p:"Você mandou consertar e o bem voltou.",
+  e:[{c:"916",d:"Retorno de mercadoria ou bem remetido para conserto ou reparo"}], s:[]},
+ {g:"Conserto, demonstração e comodato", r:["912"], t:"Remessa para demonstração", p:"Você recebeu um item para teste, demonstração ou mostruário.",
+  e:[{c:"912",d:"Entrada de mercadoria ou bem recebido para demonstração ou mostruário"}],
+  s:[{c:"913",dest:"origem",d:"Retorno de mercadoria ou bem recebido para demonstração ou mostruário",w:"Devolução do item. Se decidiu comprar, faça o retorno simbólico e o fornecedor emite a nota de venda."}]},
+ {g:"Conserto, demonstração e comodato", r:["913"], t:"Retorno de demonstração", p:"Você mandou para demonstração e o item voltou.",
+  e:[{c:"913",d:"Retorno de mercadoria ou bem remetido para demonstração, mostruário ou treinamento"}], s:[]},
+ {g:"Conserto, demonstração e comodato", r:["908"], t:"Remessa em comodato", p:"Você recebeu um bem emprestado (comodato).",
+  e:[{c:"908",d:"Entrada de bem por conta de contrato de comodato"}],
+  s:[{c:"909",dest:"origem",d:"Retorno de bem recebido por conta de contrato de comodato",w:"Devolução do bem ao fim do contrato."}]},
+ {g:"Conserto, demonstração e comodato", r:["909"], t:"Retorno de comodato", p:"Você emprestou o bem e ele voltou.",
+  e:[{c:"909",d:"Retorno de bem remetido por conta de contrato de comodato"}], s:[]},
+
+ {g:"Armazém geral e depósito", r:["905"], t:"Remessa para armazém ou depósito", p:"Você é o armazém geral ou depósito fechado.",
+  e:[{c:"905",d:"Entrada para depósito fechado ou armazém geral"}],
+  s:[{c:"906",dest:"origem",d:"Retorno de mercadoria depositada em depósito fechado ou armazém geral",w:"A mercadoria volta fisicamente para o depositante."},
+     {c:"923",dest:"cliente",lbl:"Conforme a UF do comprador",d:"Remessa por conta e ordem de terceiros, em operações com armazém geral ou depósito fechado",w:"O depositante vendeu e você entrega direto ao comprador."},
+     {c:"907",dest:"origem",d:"Retorno simbólico de mercadoria depositada em depósito fechado ou armazém geral",w:"Acompanha a 5.923: baixa simbólica para o depositante."}]},
+ {g:"Armazém geral e depósito", r:["906"], t:"Retorno do armazém", p:"Você é o depositante e a mercadoria voltou.",
+  e:[{c:"906",d:"Retorno de mercadoria remetida para depósito fechado ou armazém geral"}], s:[]},
+ {g:"Armazém geral e depósito", r:["907"], t:"Retorno simbólico do armazém", p:"Você é o depositante e o armazém entregou ao seu cliente.",
+  e:[{c:"907",d:"Retorno simbólico de mercadoria remetida para depósito fechado ou armazém geral"}], s:[]},
+
+ {g:"Venda à ordem e entrega futura", r:["923"], t:"Mercadoria entregue por conta e ordem", p:"Você comprou, mas a mercadoria veio de outra empresa que não é o seu vendedor.",
+  e:[{c:"923",d:"Entrada de mercadoria recebida do vendedor remetente, em venda à ordem"}], s:[],
+  n:["Você também recebe a nota de venda do seu vendedor (5.120/6.120); é ela que leva o CFOP de compra (1.120 ou 1.121).","Se a 5.923 veio de um armazém geral, a compra é escriturada pela nota de venda do depositante. Confirme com o contador como lançar a nota do armazém."]},
+ {g:"Venda à ordem e entrega futura", r:["120"], t:"Venda à ordem (nota do seu vendedor)", p:"Você é o comprador final de uma venda à ordem.",
+  e:[{c:"121",d:"Compra para comercialização, em venda à ordem, já recebida do vendedor remetente",w:"Para revenda."},
+     {c:"120",d:"Compra para industrialização, em venda à ordem, já recebida do vendedor remetente",w:"Para usar na produção."}], s:[]},
+ {g:"Venda à ordem e entrega futura", r:["118","119"], t:"Compra em venda à ordem (adquirente originário)", p:"Você comprou e pediu ao fornecedor que entregasse direto ao seu cliente.",
+  e:[{c:"118",d:"Compra de mercadoria pelo adquirente originário, entregue pelo vendedor remetente ao destinatário, em venda à ordem"}],
+  s:[{c:"120",dest:"cliente",d:"Venda de mercadoria adquirida de terceiros entregue ao destinatário pelo vendedor remetente, em venda à ordem",w:"Sua nota de venda ao cliente final."}]},
+ {g:"Venda à ordem e entrega futura", r:["922"], t:"Simples faturamento (entrega futura)", p:"Você comprou para receber depois.",
+  e:[{c:"922",d:"Lançamento a título de simples faturamento decorrente de compra para recebimento futuro"}], s:[],
+  n:["Sem crédito de ICMS nesta nota. O crédito vem na nota da entrega efetiva (5.116/5.117)."]},
+ {g:"Venda à ordem e entrega futura", r:["116","117"], t:"Entrega da compra para recebimento futuro", p:"A mercadoria faturada antes chegou.",
+  e:[{c:"117",d:"Compra para comercialização originada de encomenda para recebimento futuro",w:"Para revenda."},
+     {c:"116",d:"Compra para industrialização originada de encomenda para recebimento futuro",w:"Para usar na produção."}], s:[]},
+
+ {g:"Compras e devoluções", r:["101","102","115"], t:"Compra (sem ST)", p:"Você comprou mercadoria. A entrada depende do que vai fazer com ela.",
+  e:[{c:"102",d:"Compra para comercialização",w:"Para revenda."},
+     {c:"101",d:"Compra para industrialização",w:"Para usar na produção."},
+     {c:"556",d:"Compra de material para uso ou consumo",w:"Para uso interno (escritório, limpeza, manutenção)."},
+     {c:"551",d:"Compra de bem para o ativo imobilizado",w:"Máquinas, equipamentos, móveis."}],
+  s:[{c:"102",dest:"cliente",d:"Venda de mercadoria adquirida ou recebida de terceiros",w:"Revenda."},
+     {c:"101",dest:"cliente",d:"Venda de produção do estabelecimento",w:"Venda do produto que você fabricou."},
+     {c:"202",dest:"origem",d:"Devolução de compra para comercialização",w:"Se deu entrada como 1.102."},
+     {c:"201",dest:"origem",d:"Devolução de compra para industrialização",w:"Se deu entrada como 1.101."},
+     {c:"556",dest:"origem",d:"Devolução de compra de material de uso ou consumo",w:"Se deu entrada como 1.556."},
+     {c:"553",dest:"origem",d:"Devolução de compra de bem para o ativo imobilizado",w:"Se deu entrada como 1.551."}],
+  n:["O CFOP de entrada segue a sua finalidade, não o CFOP do fornecedor. Uma 5.102 do fornecedor pode entrar como 1.556 se for material de uso e consumo."]},
+ {g:"Compras e devoluções", r:["401","403","405"], t:"Compra com substituição tributária", p:"Você comprou mercadoria sujeita a ICMS-ST.",
+  e:[{c:"403",d:"Compra para comercialização em operação com mercadoria sujeita a ST",w:"Para revenda."},
+     {c:"401",d:"Compra para industrialização em operação com mercadoria sujeita a ST",w:"Para usar na produção."},
+     {c:"407",d:"Compra de mercadoria para uso ou consumo sujeita a ST",w:"Para uso interno."},
+     {c:"406",d:"Compra de bem para o ativo imobilizado sujeito a ST",w:"Máquinas, equipamentos, móveis."}],
+  s:[{c:"405",dest:"fixo",fixo:"5.405",lbl:"Dentro do estado. Para outro estado, confirme com o contador (costuma ser 6.102 ou 6.404).",d:"Venda de mercadoria sujeita a ST, na condição de contribuinte substituído",w:"Revenda."},
+     {c:"411",dest:"origem",d:"Devolução de compra para comercialização em operação com ST",w:"Se deu entrada como 1.403."},
+     {c:"410",dest:"origem",d:"Devolução de compra para industrialização em operação com ST",w:"Se deu entrada como 1.401."},
+     {c:"413",dest:"origem",d:"Devolução de mercadoria destinada ao uso ou consumo, em operação com ST",w:"Se deu entrada como 1.407."},
+     {c:"412",dest:"origem",d:"Devolução de bem do ativo imobilizado, em operação com ST",w:"Se deu entrada como 1.406."}]},
+ {g:"Compras e devoluções", r:["201","202","556","553"], t:"Devolução feita pelo seu cliente", p:"Você vendeu e o cliente devolveu.",
+  e:[{c:"202",d:"Devolução de venda de mercadoria adquirida ou recebida de terceiros",w:"Se a venda original foi 5.102/6.102 (revenda)."},
+     {c:"201",d:"Devolução de venda de produção do estabelecimento",w:"Se a venda original foi 5.101/6.101 (fabricação própria)."}], s:[],
+  n:["A entrada segue a sua venda original, não o CFOP de devolução que o cliente usou."]},
+ {g:"Compras e devoluções", r:["410","411","412","413"], t:"Devolução de venda com ST", p:"Você vendeu mercadoria com ST e o cliente devolveu.",
+  e:[{c:"411",d:"Devolução de venda de mercadoria adquirida ou recebida de terceiros em operação com ST",w:"Se a mercadoria era de revenda."},
+     {c:"410",d:"Devolução de venda de produção do estabelecimento em operação com ST",w:"Se a mercadoria era de fabricação própria."}], s:[]},
+
+ {g:"Transferências entre filiais", r:["151","152"], t:"Transferência entre filiais", p:"Mercadoria recebida de outro estabelecimento da mesma empresa.",
+  e:[{c:"152",d:"Transferência para comercialização",w:"Para revenda."},
+     {c:"151",d:"Transferência para industrialização",w:"Para usar na produção."}], s:[]},
+ {g:"Transferências entre filiais", r:["408","409"], t:"Transferência com ST", p:"Mercadoria com ST recebida de outra filial.",
+  e:[{c:"409",d:"Transferência para comercialização em operação com mercadoria sujeita a ST",w:"Para revenda."},
+     {c:"408",d:"Transferência para industrialização em operação com mercadoria sujeita a ST",w:"Para usar na produção."}], s:[]},
+ {g:"Transferências entre filiais", r:["557"], t:"Transferência de uso e consumo", p:"Material de uso e consumo vindo de outra filial.",
+  e:[{c:"557",d:"Transferência de material para uso ou consumo"}], s:[]},
+ {g:"Transferências entre filiais", r:["552"], t:"Transferência de ativo imobilizado", p:"Bem do ativo vindo de outra filial.",
+  e:[{c:"552",d:"Transferência de bem do ativo imobilizado"}], s:[]},
+
+ {g:"Bonificação, amostra e vasilhame", r:["910"], t:"Bonificação, doação ou brinde", p:"Você recebeu mercadoria sem custo.",
+  e:[{c:"910",d:"Entrada de bonificação, doação ou brinde"}], s:[]},
+ {g:"Bonificação, amostra e vasilhame", r:["911"], t:"Amostra grátis", p:"Você recebeu amostra grátis.",
+  e:[{c:"911",d:"Entrada de amostra grátis"}], s:[]},
+ {g:"Bonificação, amostra e vasilhame", r:["920"], t:"Remessa de vasilhame ou sacaria", p:"Você recebeu embalagens retornáveis.",
+  e:[{c:"920",d:"Entrada de vasilhame ou sacaria"}],
+  s:[{c:"921",dest:"origem",d:"Devolução de vasilhame ou sacaria",w:"Quando devolver as embalagens."}]},
+ {g:"Bonificação, amostra e vasilhame", r:["921"], t:"Devolução de vasilhame", p:"Suas embalagens retornáveis voltaram.",
+  e:[{c:"921",d:"Entrada por devolução de vasilhame ou sacaria"}], s:[]},
+
+ {g:"Exportação indireta", r:["501","502"], t:"Remessa com fim específico de exportação", p:"Você é a trading ou comercial exportadora.",
+  e:[{c:"501",d:"Entrada de mercadoria recebida com fim específico de exportação"}],
+  s:[{c:"501",dest:"exterior",d:"Exportação de mercadorias recebidas com fim específico de exportação",w:"Na exportação."},
+     {c:"503",dest:"origem",d:"Devolução de mercadoria recebida com fim específico de exportação",w:"Se não exportar e devolver ao remetente."}]},
+ {g:"Exportação indireta", r:["503"], t:"Devolução de remessa para exportação", p:"A trading devolveu a mercadoria que você enviou.",
+  e:[{c:"503",d:"Devolução de produto remetido com fim específico de exportação, de produção do estabelecimento",w:"Se a mercadoria era de fabricação própria."},
+     {c:"504",d:"Devolução de mercadoria remetida com fim específico de exportação, adquirida de terceiros",w:"Se a mercadoria era de revenda."}], s:[]},
+
+ {g:"Outras", r:["949"], t:"Outras operações não especificadas", p:"O fornecedor usou o CFOP genérico.",
+  e:[{c:"949",d:"Outra entrada de mercadoria ou prestação de serviço não especificada"}],
+  s:[{c:"949",dest:"origem",d:"Outra saída de mercadoria ou prestação de serviço não especificada",w:"Retorno ou devolução da mesma operação."}],
+  n:["Leia a natureza da operação e as informações complementares da nota para entender do que se trata (garantia, locação, troca etc.).","Remessa em garantia e locação costumam usar 5.949/6.949. Confirme no regulamento do seu estado."]}
+];
+
+const CHIPS=[["5.917","consignação"],["5.901","industrialização"],["5.915","conserto"],["5.912","demonstração"],["5.908","comodato"],["5.905","armazém"],["5.923","venda à ordem"],["5.102","compra"],["5.405","compra com ST"],["5.949","outras"]];
+
+const $=s=>document.querySelector(s);
+const fmt=(d,s)=>`${d}.${s}`;
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const norm=t=>t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+
+function entryCode(c,d){ // d = primeiro dígito da nota recebida (5, 6 ou null)
+  if(d==="5") return fmt(1,c);
+  if(d==="6") return fmt(2,c);
+  return `${fmt(1,c)} / ${fmt(2,c)}`;
+}
+function exitCode(x,d){
+  if(x.dest==="fixo") return {code:x.fixo,lbl:x.lbl};
+  if(x.dest==="exterior") return {code:fmt(7,x.c),lbl:"Para o exterior"};
+  if(x.dest==="origem"){
+    if(d==="5") return {code:fmt(5,x.c),lbl:"Para quem enviou a nota (mesmo estado)"};
+    if(d==="6") return {code:fmt(6,x.c),lbl:"Para quem enviou a nota (outro estado)"};
+    return {code:`${fmt(5,x.c)} / ${fmt(6,x.c)}`,lbl:"5 se for para o mesmo estado, 6 se for para outro"};
+  }
+  return {code:`${fmt(5,x.c)} / ${fmt(6,x.c)}`,lbl:x.lbl||"5 se o destinatário for do seu estado, 6 se for de outro"};
+}
+
+function card(op,d,recv,extra){
+  const recvTxt = recv ? `<span class="eyebrow">Nota recebida <span class="code">${esc(recv)}</span> · ${esc(op.g)}</span>` : `<span class="eyebrow">${esc(op.g)}</span>`;
+  const ent = op.e.map(x=>`<div class="item"><span class="code">${entryCode(x.c,d)}</span><span class="desc">${esc(x.d)}</span>${x.w?`<span class="when">${esc(x.w)}</span>`:""}</div>`).join("");
+  const sai = op.s.length ? op.s.map(x=>{const o=exitCode(x,d);return `<div class="item"><span class="code">${o.code}</span><span class="desc">${esc(x.d)}</span><span class="when">${esc(x.w||"")}</span><span class="dest">${esc(o.lbl)}</span></div>`}).join("")
+    : `<p class="none">Não há saída vinculada a esta nota. A operação termina com a entrada.</p>`;
+  const notes = [...(extra||[]),...(op.n||[])];
+  return `<article class="op">
+    <div class="op-head">${recvTxt}<h2>${esc(op.t)}</h2><p class="role">${esc(op.p)}</p></div>
+    <div class="cols">
+      <div class="col in"><span class="tag in">Dar entrada com</span><div class="list">${ent}</div></div>
+      <div class="col out"><span class="tag out">Saídas seguintes</span><div class="list">${sai}</div></div>
+    </div>
+    ${notes.length?`<div class="notes"><span class="eyebrow">Atenção</span>${notes.map(t=>`<p>${esc(t)}</p>`).join("")}</div>`:""}
+  </article>`;
+}
+
+function render(){
+  const raw=$("#q").value.trim();
+  const out=$("#result");
+  if(!raw){out.innerHTML=`<div class="msg">Digite um CFOP ou escolha um exemplo acima.</div>`;return}
+  const digits=raw.replace(/\D/g,"");
+  if(/^[\d.\s]+$/.test(raw)){
+    if(digits.length===4){
+      const d=digits[0], s=digits.slice(1);
+      if(d==="5"||d==="6"){
+        const hits=OPS.filter(o=>o.r.includes(s));
+        out.innerHTML=hits.length?hits.map(o=>card(o,d,fmt(d,s))).join("")
+          :`<div class="msg"><strong>${fmt(d,s)}</strong> não está nesta consulta. Ela cobre remessas, retornos, consignação, compras e devoluções. Para outros casos, confirme com o contador.</div>`;
+        return;
+      }
+      if(d==="1"||d==="2"){
+        const hits=OPS.filter(o=>o.e.some(x=>x.c===s));
+        const od=d==="1"?"5":"6";
+        out.innerHTML=hits.length?hits.map(o=>card(o,od,null,[`${fmt(d,s)} é um CFOP de entrada. Mostrando a operação em que ele é usado.`])).join("")
+          :`<div class="msg"><strong>${fmt(d,s)}</strong> é um CFOP de entrada que não está nesta consulta.</div>`;
+        return;
+      }
+      if(d==="7"||d==="3"){out.innerHTML=`<div class="msg"><strong>${fmt(d,s)}</strong> é uma operação com o exterior. Esta consulta cobre operações dentro do Brasil.</div>`;return}
+      out.innerHTML=`<div class="msg">CFOP inválido. O primeiro dígito deve ser 1, 2, 3, 5, 6 ou 7.</div>`;return;
+    }
+    if(digits.length===3){
+      const hits=OPS.filter(o=>o.r.includes(digits));
+      out.innerHTML=hits.length?hits.map(o=>card(o,null,`x.${digits}`,["Informe o primeiro dígito (5 ou 6) para ver o código exato."])).join("")
+        :`<div class="msg">Nada encontrado para <strong>x.${digits}</strong>.</div>`;
+      return;
+    }
+    out.innerHTML=`<div class="msg">Digite os 4 dígitos do CFOP, por exemplo <strong>6.917</strong>.</div>`;return;
+  }
+  const q=norm(raw);
+  const hits=OPS.filter(o=>norm([o.g,o.t,o.p,...o.e.map(x=>x.d),...o.s.map(x=>x.d)].join(" ")).includes(q));
+  out.innerHTML=hits.length?hits.slice(0,6).map(o=>card(o,null,null)).join("")
+    :`<div class="msg">Nada encontrado para <strong>${esc(raw)}</strong>. Tente o número do CFOP ou outra palavra.</div>`;
+}
+
+$("#chips").innerHTML=CHIPS.map(([c,l])=>`<button class="chip" type="button" data-c="${c}"><span class="code">${c}</span>${l}</button>`).join("");
+const groups={};OPS.forEach(o=>(groups[o.g]=groups[o.g]||[]).push(o));
+$("#groups").innerHTML=Object.entries(groups).map(([g,list])=>`<div class="group"><h3>${esc(g)}</h3>${list.map(o=>`<button class="link" type="button" data-c="5.${o.r[0]}"><span class="code">x.${o.r[0]}</span><span>${esc(o.t)}</span></button>`).join("")}</div>`).join("");
+document.addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;$("#q").value=b.dataset.c;render();$("#q").scrollIntoView({behavior:"smooth",block:"center"})});
+$("#q").addEventListener("input",render);
+render();
+</script>
+
+</body>
+</html>
