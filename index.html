@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Consulte o CFOP de entrada e os CFOPs das saídas seguintes para notas de remessa, consignação, industrialização, conserto e compras.">
+<meta name="description" content="Consulte o CFOP de entrada, os CFOPs das saídas seguintes e a tributação (CST, CSOSN, cBenef, IPI, PIS/COFINS) para notas de remessa, consignação, industrialização e compras.">
 <title>Consulta de CFOP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,6 +127,25 @@ main .wrap{padding-block:32px 64px;display:flex;flex-direction:column;gap:44px}
 .tile small{color:var(--muted);font-size:.78rem}
 .foot{font-size:.84rem;color:var(--muted);border-top:1px solid var(--line);padding-top:20px;max-width:78ch}
 
+/* Regime e tributação */
+.regime{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.regime>span{font-size:.86rem;font-weight:600}
+.seg{display:inline-flex;padding:4px;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.seg button{border:0;background:transparent;border-radius:8px;padding:6px 12px;font-size:.86rem;font-weight:500;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.tax{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tx{display:inline-flex;align-items:baseline;gap:6px;font-size:.8rem;padding:3px 8px;border-radius:7px;background:var(--surface-2);border:1px solid var(--line)}
+.tx b{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tx span{font-family:var(--mono);font-weight:600}
+.tx.main{background:var(--out-soft);border-color:var(--out-line)}
+.tx.main span{color:var(--out)}
+.txn{grid-column:2;font-size:.82rem;color:var(--muted);margin-top:2px}
+.taxin{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:14px;border:1px dashed var(--in-line);font-size:.86rem}
+.taxin b{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--in)}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.legend div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:.86rem;display:flex;flex-direction:column;gap:4px}
+.legend b{font-size:.92rem}
+.legend p{color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;
   background:var(--ink);color:var(--bg);font-size:.86rem;font-weight:500;padding:9px 16px;border-radius:999px;transition:opacity .2s,transform .2s}
 .toast.on{opacity:1;transform:translate(-50%,0)}
@@ -151,7 +170,7 @@ main .wrap{padding-block:32px 64px;display:flex;flex-direction:column;gap:44px}
   <div class="wrap">
     <span class="badge"><b>NF-e</b> Remessas, consignação, retornos e compras</span>
     <h1>Qual CFOP usar na <span>entrada</span> e na saída?</h1>
-    <p class="lead">Digite o CFOP que está na nota que você recebeu. Mostramos o código para dar entrada no seu sistema e os códigos das saídas seguintes: retorno, devolução ou venda.</p>
+    <p class="lead">Digite o CFOP que está na nota que você recebeu. Mostramos o código para dar entrada no seu sistema, os códigos das saídas seguintes e a tributação de cada uma: CST do ICMS ou CSOSN, cBenef, IPI e PIS/COFINS.</p>
     <div class="searchbox">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="text" inputmode="search" autocomplete="off" spellcheck="false" placeholder="6.917 ou consignação" value="6.917" aria-label="CFOP da nota recebida ou palavra-chave">
@@ -159,6 +178,12 @@ main .wrap{padding-block:32px 64px;display:flex;flex-direction:column;gap:44px}
       <span class="kbd" aria-hidden="true">/</span>
     </div>
     <p class="hint"><span><i>5.xxx</i> fornecedor do mesmo estado</span><span><i>6.xxx</i> fornecedor de outro estado</span><span><i>1.xxx</i> também aceita CFOP de entrada</span></p>
+    <div class="regime"><span>Regime do seu cliente</span>
+      <div class="seg" role="group" aria-label="Regime tributário">
+        <button type="button" id="r-normal" data-r="normal" aria-pressed="true">Lucro Real / Presumido</button>
+        <button type="button" id="r-simples" data-r="simples" aria-pressed="false">Simples Nacional</button>
+      </div>
+    </div>
     <div class="chips" id="chips"></div>
   </div>
 </header>
@@ -175,7 +200,17 @@ main .wrap{padding-block:32px 64px;display:flex;flex-direction:column;gap:44px}
       <div class="grid" id="grid"></div>
     </section>
 
-    <p class="foot">Referência baseada na tabela de CFOP do Convênio s/nº de 1970 (Ajuste SINIEF 07/01) e no Ajuste SINIEF 02/93 para consignação. Alguns estados têm regras próprias para operações como garantia, locação e armazém geral. Em caso de dúvida sobre crédito de ICMS/IPI ou escrituração, confirme com o contador responsável.</p>
+    <section style="display:flex;flex-direction:column;gap:14px">
+      <h2 style="margin:0;font-size:1.5rem;letter-spacing:-.025em">Como ler os códigos tributários</h2>
+      <div class="legend">
+        <div><b>CST do ICMS</b><p>Na NF-e tem 3 dígitos: origem + tributação. Exemplo: mercadoria nacional (0) com suspensão (50) = <span class="code">050</span>. A consulta mostra só os 2 últimos.</p></div>
+        <div><b>CSOSN</b><p>Substitui o CST do ICMS para empresas do Simples Nacional. Também recebe o dígito de origem na frente.</p></div>
+        <div><b>cBenef</b><p>Obrigatório em SP desde abril de 2026 nas notas com isenção (40), não incidência (41), suspensão (50) e diferimento (51).</p></div>
+        <div><b>Na entrada</b><p>Lance o CST do ICMS que veio na nota do fornecedor. O que muda é o direito ao crédito, explicado em cada operação.</p></div>
+      </div>
+    </section>
+
+    <p class="foot">Tributação com base no RICMS/SP (arts. 7º, 319, 402) e na tabela oficial de cBenef da Sefaz-SP (versão 20260901). Em operações com outros estados, confira também a legislação do estado de origem ou destino. Referência baseada na tabela de CFOP do Convênio s/nº de 1970 (Ajuste SINIEF 07/01) e no Ajuste SINIEF 02/93 para consignação. Alguns estados têm regras próprias para operações como garantia, locação e armazém geral. Em caso de dúvida sobre crédito de ICMS/IPI ou escrituração, confirme com o contador responsável.</p>
   </div>
 </main>
 <div class="toast" id="toast" role="status"></div>
@@ -333,6 +368,81 @@ const OPS = [
 const CHIPS=[["5.917","consignação"],["5.901","industrialização"],["5.915","conserto"],["5.912","demonstração"],["5.908","comodato"],["5.905","armazém"],["5.923","venda à ordem"],["5.102","compra"],["5.405","compra com ST"],["5.949","outras"]];
 
 
+// Tributação das saídas (base RICMS/SP). icms = CST (2 últimos dígitos), csosn = Simples Nacional,
+// cb = cBenef SP, ipi = CST IPI, pis = CST PIS/COFINS (regime normal), pisS = Simples Nacional, n = observação
+const TX = {
+ venda:{icms:"00",n:"Tributada. Use 10 se você for o substituto tributário da mercadoria.",csosn:"102 (101 se permitir crédito ao cliente)",ipi:"50 se você for industrial · comércio não destaca IPI",pis:"01",pisS:"99"},
+ vendaInd:{icms:"00",n:"Tributada. Use 10 se você for o substituto tributário da mercadoria.",csosn:"101 ou 102",ipi:"50",pis:"01",pisS:"99"},
+ vendaST:{icms:"60",n:"ICMS-ST retido anteriormente. Na venda para outro estado a tributação muda; confirme com o contador.",csosn:"500",ipi:"Não se aplica a comércio",pis:"01 · 04 se o produto for monofásico",pisS:"99"},
+ devolCompra:{icms:"Igual à nota de compra",n:"Destaque o mesmo ICMS que foi creditado na entrada.",csosn:"900",ipi:"50 se creditou IPI na entrada · senão 99",pis:"49",pisS:"99"},
+ devolCompraST:{icms:"Igual à nota de compra (geralmente 10)",n:"Devolva o ICMS próprio e o ICMS-ST nos mesmos valores da nota de compra.",csosn:"900",ipi:"50 se creditou IPI na entrada · senão 99",pis:"49",pisS:"99"},
+ consigDev:{icms:"00",n:"Devolução com o mesmo destaque de ICMS da remessa recebida.",csosn:"900",ipi:"50 se o IPI veio destacado na remessa",pis:"49",pisS:"99"},
+ consigDevSimb:{icms:"00",n:"Devolução simbólica com destaque, anulando o crédito da remessa (consignação industrial).",csosn:"900",ipi:"50",pis:"49",pisS:"99"},
+ indCob:{icms:"00",n:"Tributada sobre o valor cobrado (serviço + materiais próprios), art. 402, §2º. Há diferimento em casos específicos (cBenef SP054020); confirme.",csosn:"101 ou 102",ipi:"50 · 55 quando o autor da encomenda é industrial e o produto volta para nova industrialização",pis:"01",pisS:"99"},
+ indRet:{icms:"50",n:"Suspensão (art. 402 do RICMS/SP). Vale também entre estados.",cb:"SP054020",csosn:"400",ipi:"55 (suspensão)",pis:"49",pisS:"99"},
+ conserto:{icms:"41",n:"Não incidência no retorno (art. 7º, X) quando o bem é máquina, equipamento ou objeto de uso do cliente. Se for mercadoria de estoque, confirme o tratamento.",cb:"SP070100",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ demo:{icms:"50",n:"Suspensão também no retorno (art. 319, §2º). O retorno deve ocorrer em até 60 dias da remessa.",cb:"SP053190",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ comodato:{icms:"41",n:"Não incidência (art. 7º do RICMS/SP): inciso XIV para bem do ativo, inciso IX/X para objeto de uso.",cb:"SP070140 (ativo) ou SP070100 (uso)",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ armRet:{icms:"41",n:"Não incidência no retorno ao depositante dentro de SP (art. 7º, III). Com depositante de outro estado a operação é tributada (00).",cb:"SP070030",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ armOrdem:{icms:"41 ou 90",n:"Sem destaque: o imposto está na nota de venda do depositante. Confirme o cBenef com o contador.",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ export:{icms:"41",n:"Não incidência na exportação (art. 7º, V).",cb:"SP070050",csosn:"300",ipi:"54 (imune)",pis:"08",pisS:"99"},
+ exportDev:{icms:"Igual à nota recebida (geralmente 41)",n:"Devolução com a mesma tributação da remessa com fim específico de exportação.",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ vasilhame:{icms:"40",n:"Isenção (Anexo I, art. 82 do RICMS/SP).",cb:"SP010820",csosn:"400",ipi:"99",pis:"49",pisS:"99"},
+ outro:{icms:"Depende da operação",n:"Exemplo: peça trocada em garantia é isenta (40, cBenef SP011320). Para outras operações, confirme com o contador.",csosn:"400 ou 900",ipi:"99",pis:"49",pisS:"99"}
+};
+
+// Tributação da nota recebida (o que esperar e como lançar na entrada)
+const TE = {
+ consig:"A remessa costuma vir tributada (CST 00 ou 10). No regime normal você se credita do ICMS, e do IPI se for industrial. PIS/COFINS na entrada: 98.",
+ fatMerc:"Em regra vem sem destaque de ICMS/IPI, porque o crédito foi feito na entrada da remessa. Lance com o CST da nota. PIS/COFINS: 50 no Lucro Real ou 70 no Presumido.",
+ fatInd:"Vem com destaque de ICMS/IPI: crédito no regime normal. PIS/COFINS: 50 no Lucro Real (insumo) ou 70 no Presumido.",
+ devRecebida:"Credite o ICMS e o IPI destacados na devolução, nos mesmos valores da sua nota original. PIS/COFINS: 98.",
+ remInd:"Costuma vir com ICMS CST 50 (suspensão, art. 402) e IPI 55. Não há crédito. PIS/COFINS: 98.",
+ ret902:"A 5.902 vem com ICMS CST 50 e IPI 55, sem crédito. A cobrança (5.124) vem tributada e gera crédito no regime normal. PIS/COFINS: 98 na 1.902.",
+ cob124:"Vem tributada sobre o valor cobrado: crédito de ICMS e IPI no regime normal. PIS/COFINS: 50 no Lucro Real (insumo) ou 70 no Presumido.",
+ semCred:"Costuma vir sem destaque (CST 40, 41 ou 50). Lance com o mesmo CST da nota, sem crédito. PIS/COFINS: 98. IPI: 49.",
+ conserto:"Costuma vir com ICMS CST 41 (não incidência, art. 7º, IX) e sem IPI. Sem crédito. PIS/COFINS: 98.",
+ demo:"Costuma vir com ICMS CST 50 (suspensão, art. 319). Sem crédito. PIS/COFINS: 98.",
+ comodato:"Costuma vir com ICMS CST 41 (não incidência, art. 7º). Sem crédito. PIS/COFINS: 98.",
+ armazem:"Remessa dentro de SP vem com CST 41 (art. 7º, I). De outro estado vem tributada. Como armazém, você não se credita. PIS/COFINS: 98.",
+ vendaOrdem:"A 5.923 não gera crédito; o crédito é feito pela nota de venda do seu vendedor (1.120/1.121). PIS/COFINS: 98.",
+ entregaFut:"Simples faturamento sem destaque de ICMS: sem crédito. O crédito vem na nota da entrega (5.116/5.117). PIS/COFINS: 98.",
+ compra:"Crédito de ICMS na revenda e na industrialização (regime normal). Uso e consumo não dá crédito. Ativo imobilizado credita em 48 meses (CIAP). IPI: 00 com crédito se for industrial, senão 49. PIS/COFINS: 50 no Lucro Real (revenda e insumo) ou 70 no Presumido e no uso e consumo.",
+ compraST:"O ICMS-ST não gera crédito na revenda. Na industrialização, o ICMS próprio e o ST podem ser creditados; confirme com o contador. PIS/COFINS: 50 no Lucro Real ou 70 no Presumido (70 também se for monofásico).",
+ devVenda:"Credite o ICMS e o IPI destacados pelo cliente, limitados aos valores da sua venda. PIS/COFINS: 98 (estorno da receita).",
+ devVendaST:"Credite o ICMS próprio destacado. O ICMS-ST devolvido segue o ressarcimento/compensação do RICMS/SP. PIS/COFINS: 98.",
+ transf:"Desde 2024 a transferência entre filiais segue a LC 204/2023 (transferência de crédito). Lance com o CST da nota e confirme o crédito com o contador. PIS/COFINS: 98.",
+ bonif:"Bonificação vem tributada (CST 00): crédito de ICMS se for para revenda ou industrialização. PIS/COFINS: 98.",
+ amostra:"Amostra grátis é isenta (CST 40, cBenef SP010030). Sem crédito. PIS/COFINS: 98.",
+ vasilhame:"Vasilhame é isento (CST 40, cBenef SP010820). Sem crédito. PIS/COFINS: 98.",
+ export:"Com fim específico de exportação vem com ICMS CST 41 (não incidência) e IPI 54 ou 55. Sem crédito. PIS/COFINS: 98.",
+ outro:"Lance com o mesmo CST da nota. O crédito depende do destaque e da finalidade. PIS/COFINS: 98."
+};
+
+// Ligação: primeiro CFOP da nota recebida → tributação da entrada e de cada saída
+const TAXMAP = {
+ "917":{e:"consig",s:{"115":"venda","918":"consigDev","919":"consigDevSimb"}},
+ "113":{e:"fatMerc"}, "111":{e:"fatInd"},
+ "918":{e:"devRecebida"}, "919":{e:"devRecebida",s:{"111":"vendaInd","112":"venda"}},
+ "901":{e:"remInd",s:{"124":"indCob","902":"indRet","903":"indRet"}},
+ "902":{e:"ret902"}, "124":{e:"cob124"}, "903":{e:"semCred"},
+ "924":{e:"remInd",s:{"125":"indCob","925":"indRet"}}, "925":{e:"semCred"}, "125":{e:"cob124"},
+ "915":{e:"conserto",s:{"916":"conserto"}}, "916":{e:"semCred"},
+ "912":{e:"demo",s:{"913":"demo"}}, "913":{e:"semCred"},
+ "908":{e:"comodato",s:{"909":"comodato"}}, "909":{e:"semCred"},
+ "905":{e:"armazem",s:{"906":"armRet","923":"armOrdem","907":"armRet"}}, "906":{e:"semCred"}, "907":{e:"semCred"},
+ "923":{e:"vendaOrdem"}, "120":{e:"compra"}, "118":{e:"compra",s:{"120":"venda"}},
+ "922":{e:"entregaFut"}, "116":{e:"compra"},
+ "101":{e:"compra",s:{"102":"venda","101":"vendaInd","202":"devolCompra","201":"devolCompra","556":"devolCompra","553":"devolCompra"}},
+ "401":{e:"compraST",s:{"405":"vendaST","411":"devolCompraST","410":"devolCompraST","413":"devolCompraST","412":"devolCompraST"}},
+ "201":{e:"devVenda"}, "410":{e:"devVendaST"},
+ "151":{e:"transf"}, "408":{e:"transf"}, "557":{e:"transf"}, "552":{e:"transf"},
+ "910":{e:"bonif"}, "911":{e:"amostra"}, "920":{e:"vasilhame",s:{"921":"vasilhame"}}, "921":{e:"semCred"},
+ "501":{e:"export",s:{"501":"export","503":"exportDev"}}, "503":{e:"semCred"},
+ "949":{e:"outro",s:{"949":"outro"}}
+};
+
+let REG="normal";try{REG=localStorage.getItem("cfop-regime")||"normal"}catch(e){}
 const $=s=>document.querySelector(s);
 const fmt=(d,s)=>`${d}.${s}`;
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -358,18 +468,30 @@ function exitCode(x,d){
 }
 const copyBtn=code=>code.includes("/")?"":`<button class="copy" type="button" data-copy="${code}" aria-label="Copiar ${code}" title="Copiar">${ICON_COPY}</button>`;
 
+function taxRow(key){
+  const t=TX[key]; if(!t) return "";
+  const s=REG==="simples";
+  const chips=[
+    s?`<span class="tx main"><b>CSOSN</b><span>${esc(t.csosn)}</span></span>`:`<span class="tx main"><b>CST ICMS</b><span>${esc(t.icms)}</span></span>`,
+    t.cb?`<span class="tx"><b>cBenef</b><span>${esc(t.cb)}</span></span>`:"",
+    `<span class="tx"><b>IPI</b><span>${esc(t.ipi)}</span></span>`,
+    `<span class="tx"><b>PIS/COFINS</b><span>${esc(s?t.pisS:t.pis)}</span></span>`
+  ].join("");
+  return `<div class="tax">${chips}</div>${t.n?`<p class="txn">${esc(t.n)}</p>`:""}`;
+}
 function card(op,d,recv,extra){
+  const tm=TAXMAP[op.r[0]]||{};
   const ent=op.e.map(x=>{const c=entryCode(x.c,d);return `<div class="row"><span class="cbox"><span class="code">${c}</span>${copyBtn(c)}</span><span class="desc">${esc(x.d)}</span>${x.w?`<span class="when">${esc(x.w)}</span>`:""}</div>`}).join("");
-  const sai=op.s.length?op.s.map(x=>{const o=exitCode(x,d);return `<div class="row"><span class="cbox"><span class="code">${o.code}</span>${copyBtn(o.code)}</span><span class="desc">${esc(x.d)}</span>${x.w?`<span class="when">${esc(x.w)}</span>`:""}<span class="dest">${esc(o.lbl)}</span></div>`}).join("")
+  const sai=op.s.length?op.s.map(x=>{const o=exitCode(x,d);return `<div class="row"><span class="cbox"><span class="code">${o.code}</span>${copyBtn(o.code)}</span><span class="desc">${esc(x.d)}</span>${x.w?`<span class="when">${esc(x.w)}</span>`:""}<span class="dest">${esc(o.lbl)}</span>${taxRow((tm.s||{})[x.c])}</div>`}).join("")
     :`<p class="none">Nenhuma saída vinculada a esta nota. A operação termina com a entrada.</p>`;
-  const notes=[...(extra||[]),...(op.n||[])];
+  const notes=[...(extra||[]),...(op.n||[]),...(d==="6"&&tm.s?["Tributação indicada pelo RICMS/SP. Como a outra parte está em outro estado, confirme também a legislação de lá."]:[])];
   return `<article class="op">
     <div class="op-head">
       <div class="op-title"><span class="grp">${esc(op.g)}</span><h2>${esc(op.t)}</h2><p class="role">${esc(op.p)}</p></div>
       ${recv?`<div class="recv"><small>Nota recebida</small><span class="code">${esc(recv)}</span></div>`:""}
     </div>
     <div class="flow">
-      <div class="lane in"><span class="lane-h"><span class="dot"></span>Dar entrada com</span>${ent}</div>
+      <div class="lane in"><span class="lane-h"><span class="dot"></span>Dar entrada com</span>${ent}${tm.e?`<div class="taxin"><b>Tributação na entrada</b><p>${esc(TE[tm.e])}</p>${REG==="simples"?"<p>No Simples Nacional não há crédito de ICMS nem de PIS/COFINS nas entradas. Lance o CST/CSOSN que veio na nota.</p>":""}</div>`:""}</div>
       <div class="arrow">${ICON_ARROW}</div>
       <div class="lane out"><span class="lane-h"><span class="dot"></span>Saídas seguintes</span>${sai}</div>
     </div>
@@ -445,10 +567,13 @@ document.addEventListener("click",e=>{
   $("#q").value=b.dataset.c;render();
   if(b.classList.contains("tile")) $("#result").scrollIntoView({behavior:"smooth",block:"start"});
 });
+function setReg(r){REG=r;try{localStorage.setItem("cfop-regime",r)}catch(e){}
+  document.querySelectorAll("[data-r]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.r===r));render()}
+document.querySelectorAll("[data-r]").forEach(b=>b.addEventListener("click",()=>setReg(b.dataset.r)));
 $("#clear").addEventListener("click",()=>{$("#q").value="";render();$("#q").focus()});
 $("#q").addEventListener("input",render);
 document.addEventListener("keydown",e=>{if(e.key==="/"&&document.activeElement!==$("#q")){e.preventDefault();$("#q").focus();$("#q").select()}});
-renderCat();render();
+renderCat();setReg(REG);
 </script>
 
 </body>
